@@ -1,0 +1,101 @@
+# Helm Values - Development Environment
+# operator-996 Platform
+
+replicaCount: 1
+
+image:
+  repository: operator996/app
+  tag: dev-latest
+  pullPolicy: Always
+
+resources:
+  limits:
+    cpu: 500m
+    memory: 512Mi
+  requests:
+    cpu: 100m
+    memory: 128Mi
+
+autoscaling:
+  enabled: false
+
+service:
+  type: ClusterIP
+  port: 3000
+  targetPort: 3000
+
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-staging
+  hosts:
+    - host: dev.operator996.io
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - secretName: operator996-dev-tls
+      hosts:
+        - dev.operator996.io
+
+env:
+  - name: NODE_ENV
+    value: "development"
+  - name: LOG_LEVEL
+    value: "debug"
+
+envFrom:
+  - configMapRef:
+      name: operator996-dev-config
+  - secretRef:
+      name: operator996-dev-secrets
+
+postgresql:
+  enabled: true
+  auth:
+    username: dev_user
+    database: operator996_dev
+  primary:
+    persistence:
+      size: 10Gi
+
+redis:
+  enabled: true
+  auth:
+    enabled: false
+  master:
+    persistence:
+      size: 2Gi
+
+probes:
+  liveness:
+    httpGet:
+      path: /health
+      port: 3000
+    initialDelaySeconds: 30
+    periodSeconds: 10
+  readiness:
+    httpGet:
+      path: /ready
+      port: 3000
+    initialDelaySeconds: 10
+    periodSeconds: 5
+
+security:
+  podSecurityContext:
+    runAsNonRoot: true
+    runAsUser: 1000
+    fsGroup: 1000
+  containerSecurityContext:
+    allowPrivilegeEscalation: false
+    readOnlyRootFilesystem: false
+    capabilities:
+      drop:
+        - ALL
+
+monitoring:
+  enabled: true
+  serviceMonitor:
+    enabled: true
+    interval: 30s

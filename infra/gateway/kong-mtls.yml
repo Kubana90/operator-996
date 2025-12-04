@@ -1,0 +1,224 @@
+# Kong Gateway mTLS Configuration
+# operator-996 Platform - Mutual TLS Authentication
+
+_format_version: "3.0"
+
+# Certificate Configuration
+certificates:
+  - cert: |
+      -----BEGIN CERTIFICATE-----
+      # Server certificate (to be replaced with actual cert)
+      # Use: kubectl create secret tls kong-server-cert --cert=server.crt --key=server.key
+      -----END CERTIFICATE-----
+    key: |
+      -----BEGIN PRIVATE KEY-----
+      # Server private key (to be replaced with actual key)
+      -----END PRIVATE KEY-----
+    tags:
+      - operator996
+      - mtls
+
+  - cert: |
+      -----BEGIN CERTIFICATE-----
+      # CA certificate for client verification
+      # This CA must have signed the client certificates
+      -----END CERTIFICATE-----
+    tags:
+      - ca
+      - client-verification
+
+# CA Certificates for Client Validation
+ca_certificates:
+  - cert: |
+      -----BEGIN CERTIFICATE-----
+      # Root CA certificate
+      # All client certificates must be signed by this CA
+      -----END CERTIFICATE-----
+    tags:
+      - root-ca
+      - operator996
+
+services:
+  # Secure Internal API with mTLS
+  - name: operator996-secure-api
+    url: https://operator996-api.operator996.svc.cluster.local:8443
+    protocol: https
+    client_certificate:
+      id: ${KONG_CLIENT_CERT_ID}  # Reference to certificate above
+    tls_verify: true
+    ca_certificates:
+      - ${KONG_CA_CERT_ID}
+    routes:
+      - name: secure-api
+        paths:
+          - /secure
+        protocols:
+          - https
+        methods:
+          - GET
+          - POST
+          - PUT
+          - DELETE
+        plugins:
+          # mTLS Authentication Plugin
+          - name: mtls-auth
+            config:
+              ca_certificates:
+                - ${KONG_CA_CERT_ID}
+              skip_consumer_lookup: false
+              authenticated_group_by: CN  # Common Name
+              revocation_check_mode: IGNORE_CA_ERROR
+              http_proxy_host: null
+              http_proxy_port: null
+              https_proxy_host: null
+              https_proxy_port: null
+              cache_ttl: 60
+
+          # Enhanced Rate Limiting for Secure Endpoints
+          - name: rate-limiting
+            config:
+              minute: 50
+              hour: 1000
+              policy: cluster
+              fault_tolerant: true
+              hide_client_headers: false
+
+          # Request Validation
+          - name: request-validator
+            config:
+              body_schema: |
+                {
+                  "type": "object"
+                }
+              allowed_content_types:
+                - application/json
+                - application/xml
+              version: draft4
+
+          # Advanced Security Headers
+          - name: response-transformer
+            config:
+              add:
+                headers:
+                  - Strict-Transport-Security:max-age=31536000; includeSubDomains
+                  - X-Content-Type-Options:nosniff
+                  - X-Frame-Options:DENY
+                  - X-XSS-Protection:1; mode=block
+                  - Content-Security-Policy:default-src 'self'
+
+  # Admin API with mTLS
+  - name: kong-admin-mtls
+    url: http://localhost:8001
+    routes:
+      - name: admin-api-secure
+        paths:
+          - /admin
+        protocols:
+          - https
+        plugins:
+          - name: mtls-auth
+            config:
+              ca_certificates:
+                - ${KONG_CA_CERT_ID}
+              authenticated_group_by: CN
+
+# Global Plugins for mTLS Enforcement
+plugins:
+  # IP Whitelist for Additional Security
+  - name: ip-restriction
+    config:
+      allow:
+        - 10.0.0.0/8          # Internal network
+        - 172.16.0.0/12       # Docker/K8s network
+        - 192.168.0.0/16      # Private network
+      deny: []
+      status: 403
+      message: "IP not allowed"
+
+  # Request Size Limiting
+  - name: request-size-limiting
+    config:
+      allowed_payload_size: 10
+      size_unit: megabytes
+      require_content_length: true
+
+  # Advanced Logging for Security Auditing
+  - name: file-log
+    config:
+      path: /var/log/kong/mtls-access.log
+      reopen: true
+      custom_fields_by_lua:
+        client_cn: |
+          return kong.client.get_credential() and
+                 kong.client.get_credential().cn or "unknown"
+        client_serial: |
+          return kong.client.get_credential() and
+                 kong.client.get_credential().serial or "unknown"
+
+# Consumer Configuration (Client Certificates)
+consumers:
+  - username: operator996-client-1
+    custom_id: client-1
+    tags:
+      - production
+      - mtls
+    plugins:
+      - name: acl
+        config:
+          allow:
+            - operator996-production
+
+  - username: operator996-client-2
+    custom_id: client-2
+    tags:
+      - staging
+      - mtls
+    plugins:
+      - name: acl
+        config:
+          allow:
+            - operator996-staging
+
+# ACL Groups
+acls:
+  - consumer: operator996-client-1
+    group: operator996-production
+  - consumer: operator996-client-2
+    group: operator996-staging
+
+# Upstream Configuration with Health Checks
+upstreams:
+  - name: operator996-secure-upstream
+    algorithm: consistent-hashing
+    hash_on: header
+    hash_on_header: X-Client-Certificate-CN
+    healthchecks:
+      active:
+        type: https
+        healthy:
+          interval: 10
+          successes: 2
+        unhealthy:
+          interval: 5
+          http_failures: 3
+          tcp_failures: 3
+          timeouts: 3
+        http_path: /health
+        timeout: 5
+        https_verify_certificate: true
+        https_sni: operator996-api.operator996.svc.cluster.local
+      passive:
+        type: https
+        healthy:
+          successes: 3
+        unhealthy:
+          http_failures: 5
+          tcp_failures: 2
+          timeouts: 3
+    targets:
+      - target: operator996-api-1.operator996.svc.cluster.local:8443
+        weight: 100
+      - target: operator996-api-2.operator996.svc.cluster.local:8443
+        weight: 100
+      - target: operator996-api-3.operator996.svc.cluster.local:8443
+        weight: 100

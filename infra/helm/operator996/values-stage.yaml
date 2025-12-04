@@ -1,0 +1,135 @@
+# Helm Values - Staging Environment
+# operator-996 Platform
+
+replicaCount: 2
+
+image:
+  repository: operator996/app
+  tag: stage-latest
+  pullPolicy: IfNotPresent
+
+resources:
+  limits:
+    cpu: 1000m
+    memory: 1Gi
+  requests:
+    cpu: 250m
+    memory: 256Mi
+
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 5
+  targetCPUUtilizationPercentage: 70
+  targetMemoryUtilizationPercentage: 80
+
+service:
+  type: ClusterIP
+  port: 3000
+  targetPort: 3000
+
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/rate-limit: "100"
+  hosts:
+    - host: stage.operator996.io
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - secretName: operator996-stage-tls
+      hosts:
+        - stage.operator996.io
+
+env:
+  - name: NODE_ENV
+    value: "staging"
+  - name: LOG_LEVEL
+    value: "info"
+
+envFrom:
+  - configMapRef:
+      name: operator996-stage-config
+  - secretRef:
+      name: operator996-stage-secrets
+
+vault:
+  enabled: true
+  role: operator996-stage
+  secretPath: operator996/stage
+  secrets:
+    - name: DB_PASSWORD
+      path: database/creds/stage
+    - name: REDIS_PASSWORD
+      path: redis/creds/stage
+    - name: JWT_SECRET
+      path: auth/jwt/stage
+
+postgresql:
+  enabled: true
+  auth:
+    username: stage_user
+    database: operator996_stage
+  primary:
+    persistence:
+      size: 50Gi
+    resources:
+      limits:
+        cpu: 1000m
+        memory: 2Gi
+      requests:
+        cpu: 250m
+        memory: 512Mi
+
+redis:
+  enabled: true
+  auth:
+    enabled: true
+  master:
+    persistence:
+      size: 10Gi
+    resources:
+      limits:
+        cpu: 500m
+        memory: 1Gi
+
+probes:
+  liveness:
+    httpGet:
+      path: /health
+      port: 3000
+    initialDelaySeconds: 60
+    periodSeconds: 10
+    failureThreshold: 3
+  readiness:
+    httpGet:
+      path: /ready
+      port: 3000
+    initialDelaySeconds: 20
+    periodSeconds: 5
+    failureThreshold: 3
+
+security:
+  podSecurityContext:
+    runAsNonRoot: true
+    runAsUser: 1000
+    fsGroup: 1000
+  containerSecurityContext:
+    allowPrivilegeEscalation: false
+    readOnlyRootFilesystem: true
+    capabilities:
+      drop:
+        - ALL
+  networkPolicy:
+    enabled: true
+
+monitoring:
+  enabled: true
+  serviceMonitor:
+    enabled: true
+    interval: 15s
+  alerts:
+    enabled: true

@@ -1,0 +1,178 @@
+# Helm Values - Production Environment
+# operator-996 Platform
+
+replicaCount: 3
+
+image:
+  repository: operator996/app
+  tag: v1.0.0  # Always use semantic versioning in prod
+  pullPolicy: IfNotPresent
+
+resources:
+  limits:
+    cpu: 2000m
+    memory: 2Gi
+  requests:
+    cpu: 500m
+    memory: 512Mi
+
+autoscaling:
+  enabled: true
+  minReplicas: 3
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 60
+  targetMemoryUtilizationPercentage: 70
+  behavior:
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      policies:
+        - type: Percent
+          value: 50
+          periodSeconds: 60
+
+service:
+  type: ClusterIP
+  port: 3000
+  targetPort: 3000
+  annotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "3000"
+
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/rate-limit: "50"
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+  hosts:
+    - host: api.operator996.io
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - secretName: operator996-prod-tls
+      hosts:
+        - api.operator996.io
+
+env:
+  - name: NODE_ENV
+    value: "production"
+  - name: LOG_LEVEL
+    value: "warn"
+
+envFrom:
+  - configMapRef:
+      name: operator996-prod-config
+  - secretRef:
+      name: operator996-prod-secrets
+
+vault:
+  enabled: true
+  role: operator996-prod
+  secretPath: operator996/prod
+  secrets:
+    - name: DB_PASSWORD
+      path: database/creds/prod
+    - name: REDIS_PASSWORD
+      path: redis/creds/prod
+    - name: JWT_SECRET
+      path: auth/jwt/prod
+    - name: KONG_ADMIN_TOKEN
+      path: kong/admin/token
+    - name: DATADOG_API_KEY
+      path: datadog/api/key
+
+postgresql:
+  enabled: true
+  auth:
+    username: prod_user
+    database: operator996_prod
+  primary:
+    persistence:
+      size: 200Gi
+      storageClass: fast-ssd
+    resources:
+      limits:
+        cpu: 4000m
+        memory: 8Gi
+      requests:
+        cpu: 1000m
+        memory: 2Gi
+  readReplicas:
+    replicaCount: 2
+    persistence:
+      size: 200Gi
+
+redis:
+  enabled: true
+  auth:
+    enabled: true
+  architecture: replication
+  master:
+    persistence:
+      size: 50Gi
+      storageClass: fast-ssd
+    resources:
+      limits:
+        cpu: 2000m
+        memory: 4Gi
+  replica:
+    replicaCount: 2
+    persistence:
+      size: 50Gi
+
+probes:
+  liveness:
+    httpGet:
+      path: /health
+      port: 3000
+    initialDelaySeconds: 90
+    periodSeconds: 10
+    failureThreshold: 3
+    timeoutSeconds: 5
+  readiness:
+    httpGet:
+      path: /ready
+      port: 3000
+    initialDelaySeconds: 30
+    periodSeconds: 5
+    failureThreshold: 3
+    timeoutSeconds: 3
+
+security:
+  podSecurityContext:
+    runAsNonRoot: true
+    runAsUser: 1000
+    fsGroup: 1000
+    seccompProfile:
+      type: RuntimeDefault
+  containerSecurityContext:
+    allowPrivilegeEscalation: false
+    readOnlyRootFilesystem: true
+    capabilities:
+      drop:
+        - ALL
+  networkPolicy:
+    enabled: true
+    policyTypes:
+      - Ingress
+      - Egress
+  podDisruptionBudget:
+    enabled: true
+    minAvailable: 2
+
+monitoring:
+  enabled: true
+  serviceMonitor:
+    enabled: true
+    interval: 10s
+  alerts:
+    enabled: true
+    severity: critical
+
+backup:
+  enabled: true
+  schedule: "0 2 * * *"
+  retention: 30
