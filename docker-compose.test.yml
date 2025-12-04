@@ -1,0 +1,153 @@
+# Docker Compose for Testing
+# operator-996 Test Environment
+
+version: '3.8'
+
+services:
+  # PostgreSQL with TimescaleDB
+  postgres:
+    image: timescale/timescaledb:latest-pg14
+    container_name: operator996-test-postgres
+    environment:
+      POSTGRES_DB: operator996_test
+      POSTGRES_USER: test_user
+      POSTGRES_PASSWORD: test_pass
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_test_data:/var/lib/postgresql/data
+      - ./infra/db/kpi-schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U test_user -d operator996_test"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - test_network
+
+  # Redis Cache
+  redis:
+    image: redis:7-alpine
+    container_name: operator996-test-redis
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_test_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - test_network
+
+  # Kong Gateway (optional for integration tests)
+  kong-database:
+    image: postgres:14-alpine
+    container_name: operator996-test-kong-db
+    environment:
+      POSTGRES_DB: kong_test
+      POSTGRES_USER: kong
+      POSTGRES_PASSWORD: kong_pass
+    volumes:
+      - kong_test_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U kong"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - test_network
+
+  kong-migration:
+    image: kong:3.4
+    container_name: operator996-test-kong-migration
+    depends_on:
+      kong-database:
+        condition: service_healthy
+    environment:
+      KONG_DATABASE: postgres
+      KONG_PG_HOST: kong-database
+      KONG_PG_USER: kong
+      KONG_PG_PASSWORD: kong_pass
+      KONG_PG_DATABASE: kong_test
+    command: kong migrations bootstrap
+    networks:
+      - test_network
+
+  kong:
+    image: kong:3.4
+    container_name: operator996-test-kong
+    depends_on:
+      kong-migration:
+        condition: service_completed_successfully
+    environment:
+      KONG_DATABASE: postgres
+      KONG_PG_HOST: kong-database
+      KONG_PG_USER: kong
+      KONG_PG_PASSWORD: kong_pass
+      KONG_PG_DATABASE: kong_test
+      KONG_PROXY_ACCESS_LOG: /dev/stdout
+      KONG_ADMIN_ACCESS_LOG: /dev/stdout
+      KONG_PROXY_ERROR_LOG: /dev/stderr
+      KONG_ADMIN_ERROR_LOG: /dev/stderr
+      KONG_ADMIN_LISTEN: 0.0.0.0:8001
+    ports:
+      - "8000:8000"  # Proxy
+      - "8001:8001"  # Admin API
+    healthcheck:
+      test: ["CMD", "kong", "health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - test_network
+
+  # Prometheus (optional)
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: operator996-test-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./ops/observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_test_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+    networks:
+      - test_network
+
+  # Grafana (optional)
+  grafana:
+    image: grafana/grafana:latest
+    container_name: operator996-test-grafana
+    ports:
+      - "3001:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_USERS_ALLOW_SIGN_UP: false
+    volumes:
+      - grafana_test_data:/var/lib/grafana
+      - ./ops/observability/grafana:/etc/grafana/provisioning:ro
+    networks:
+      - test_network
+
+volumes:
+  postgres_test_data:
+    driver: local
+  redis_test_data:
+    driver: local
+  kong_test_data:
+    driver: local
+  prometheus_test_data:
+    driver: local
+  grafana_test_data:
+    driver: local
+
+networks:
+  test_network:
+    driver: bridge
+    name: operator996_test_network
