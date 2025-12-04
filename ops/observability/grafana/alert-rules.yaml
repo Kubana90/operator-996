@@ -1,0 +1,317 @@
+# Grafana Alert Rules Configuration
+# operator-996 Platform Monitoring
+
+apiVersion: 1
+
+groups:
+  # High Priority - Critical System Health
+  - name: critical_system_alerts
+    interval: 1m
+    rules:
+      # API Response Time Alert
+      - uid: api_response_time_critical
+        title: API Response Time Critical
+        condition: C
+        data:
+          - refId: A
+            datasourceUid: prometheus
+            model:
+              expr: histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m]))
+              intervalMs: 60000
+              maxDataPoints: 43200
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    params: [1.0]
+                    type: gt
+        annotations:
+          summary: "API response time exceeded 1 second (p95)"
+          description: "The 95th percentile API response time is {{ $values.B.Value }}s, which exceeds the 1s threshold"
+          runbook_url: "https://wiki.operator996.io/runbooks/high-latency"
+        labels:
+          severity: critical
+          team: platform
+          component: api
+        for: 5m
+        noDataState: NoData
+        execErrState: Alerting
+
+      # High Error Rate Alert
+      - uid: error_rate_critical
+        title: High Error Rate
+        condition: C
+        data:
+          - refId: A
+            datasourceUid: prometheus
+            model:
+              expr: rate(http_requests_total{status=~"5.."}[5m]) / rate(http_requests_total[5m]) * 100
+              intervalMs: 60000
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    params: [5.0]
+                    type: gt
+        annotations:
+          summary: "Error rate exceeds 5%"
+          description: "Current error rate is {{ $values.B.Value }}%"
+        labels:
+          severity: critical
+          team: platform
+        for: 3m
+
+      # Database Connection Pool Exhaustion
+      - uid: db_connection_pool_critical
+        title: Database Connection Pool Near Exhaustion
+        condition: C
+        data:
+          - refId: A
+            datasourceUid: postgresql
+            model:
+              rawSql: "SELECT COUNT(*) as active_connections FROM pg_stat_activity WHERE state = 'active'"
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    params: [80]
+                    type: gt
+        annotations:
+          summary: "Database connection pool usage critical"
+          description: "Active connections: {{ $values.B.Value }}"
+        labels:
+          severity: critical
+          component: database
+        for: 2m
+
+  # Medium Priority - Performance Degradation
+  - name: performance_alerts
+    interval: 2m
+    rules:
+      # CPU Usage Warning
+      - uid: cpu_usage_warning
+        title: High CPU Usage
+        condition: C
+        data:
+          - refId: A
+            datasourceUid: prometheus
+            model:
+              expr: 100 - (avg by(instance) (rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100)
+              intervalMs: 120000
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    params: [80]
+                    type: gt
+        annotations:
+          summary: "CPU usage high"
+          description: "CPU usage is {{ $values.B.Value }}%"
+        labels:
+          severity: warning
+          component: infrastructure
+        for: 10m
+
+      # Memory Usage Warning
+      - uid: memory_usage_warning
+        title: High Memory Usage
+        condition: C
+        data:
+          - refId: A
+            datasourceUid: prometheus
+            model:
+              expr: (1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) * 100
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    params: [85]
+                    type: gt
+        annotations:
+          summary: "Memory usage high"
+          description: "Memory usage is {{ $values.B.Value }}%"
+        labels:
+          severity: warning
+        for: 5m
+
+  # Biofeedback Specific Alerts
+  - name: biofeedback_alerts
+    interval: 5m
+    rules:
+      # Low Data Quality
+      - uid: biofeedback_quality_low
+        title: Biofeedback Data Quality Low
+        condition: C
+        data:
+          - refId: A
+            datasourceUid: postgresql
+            model:
+              rawSql: "SELECT AVG(quality_score) as avg_quality FROM biofeedback_metrics WHERE timestamp > NOW() - INTERVAL '10 minutes' AND quality_score IS NOT NULL"
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    params: [50]
+                    type: lt
+        annotations:
+          summary: "Biofeedback sensor quality degraded"
+          description: "Average quality score is {{ $values.B.Value }}%"
+        labels:
+          severity: warning
+          component: biofeedback
+        for: 15m
+
+      # No Data Received
+      - uid: biofeedback_no_data
+        title: No Biofeedback Data Received
+        condition: C
+        data:
+          - refId: A
+            datasourceUid: postgresql
+            model:
+              rawSql: "SELECT COUNT(*) as data_count FROM biofeedback_metrics WHERE timestamp > NOW() - INTERVAL '5 minutes'"
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    params: [1]
+                    type: lt
+        annotations:
+          summary: "No biofeedback data received"
+          description: "No data in the last 5 minutes"
+        labels:
+          severity: warning
+          component: biofeedback
+        for: 5m
+
+  # Business KPI Alerts
+  - name: business_kpi_alerts
+    interval: 5m
+    rules:
+      # Active Users Drop
+      - uid: active_users_drop
+        title: Significant Drop in Active Users
+        condition: C
+        data:
+          - refId: A
+            datasourceUid: postgresql
+            model:
+              rawSql: "SELECT COUNT(DISTINCT user_id) as active_users FROM events WHERE timestamp > NOW() - INTERVAL '1 hour'"
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: reduce
+              expression: A
+              reducer: last
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    params: [100]
+                    type: lt
+        annotations:
+          summary: "Active user count dropped significantly"
+          description: "Only {{ $values.B.Value }} active users in the last hour"
+        labels:
+          severity: warning
+          team: business
+        for: 10m
+
+contactPoints:
+  - name: platform-team
+    receivers:
+      - uid: slack-platform
+        type: slack
+        settings:
+          url: ${SLACK_WEBHOOK_URL}
+          title: "operator-996 Alert"
+          text: "{{ .CommonAnnotations.summary }}"
+      - uid: pagerduty-critical
+        type: pagerduty
+        settings:
+          integrationKey: ${PAGERDUTY_INTEGRATION_KEY}
+          severity: critical
+      - uid: email-oncall
+        type: email
+        settings:
+          addresses: oncall@operator996.io
+
+notificationPolicies:
+  - receiver: platform-team
+    group_by: ['alertname', 'severity']
+    group_wait: 30s
+    group_interval: 5m
+    repeat_interval: 4h
+    matchers:
+      - severity =~ "critical|warning"
+    routes:
+      - receiver: pagerduty-critical
+        matchers:
+          - severity = "critical"
+        continue: true

@@ -1,0 +1,318 @@
+{
+  "dashboard": {
+    "id": null,
+    "uid": "operator996-biofeedback",
+    "title": "operator-996 Biofeedback Analytics",
+    "tags": ["operator996", "biofeedback", "health", "metrics"],
+    "timezone": "browser",
+    "schemaVersion": 38,
+    "version": 1,
+    "refresh": "30s",
+    "time": {
+      "from": "now-6h",
+      "to": "now"
+    },
+    "timepicker": {
+      "refresh_intervals": ["10s", "30s", "1m", "5m", "15m", "30m", "1h"],
+      "time_options": ["5m", "15m", "1h", "6h", "12h", "24h", "2d", "7d", "30d"]
+    },
+    "panels": [
+      {
+        "id": 1,
+        "title": "Real-Time Heart Rate",
+        "type": "timeseries",
+        "gridPos": {
+          "x": 0,
+          "y": 0,
+          "w": 12,
+          "h": 8
+        },
+        "targets": [
+          {
+            "datasource": "PostgreSQL",
+            "format": "time_series",
+            "rawSql": "SELECT timestamp AS time, AVG(value) as heart_rate FROM biofeedback_metrics WHERE metric_type = 'heart_rate' AND $__timeFilter(timestamp) GROUP BY time ORDER BY time",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "bpm",
+            "color": {
+              "mode": "palette-classic"
+            },
+            "custom": {
+              "lineWidth": 2,
+              "fillOpacity": 10,
+              "gradientMode": "none",
+              "lineInterpolation": "smooth"
+            },
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"value": null, "color": "green"},
+                {"value": 60, "color": "yellow"},
+                {"value": 100, "color": "red"}
+              ]
+            }
+          }
+        }
+      },
+      {
+        "id": 2,
+        "title": "Stress Level Distribution",
+        "type": "gauge",
+        "gridPos": {
+          "x": 12,
+          "y": 0,
+          "w": 6,
+          "h": 8
+        },
+        "targets": [
+          {
+            "datasource": "PostgreSQL",
+            "rawSql": "SELECT AVG(value) as stress_level FROM biofeedback_metrics WHERE metric_type = 'stress_level' AND timestamp > NOW() - INTERVAL '5 minutes'",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percent",
+            "min": 0,
+            "max": 100,
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"value": 0, "color": "green"},
+                {"value": 50, "color": "yellow"},
+                {"value": 75, "color": "red"}
+              ]
+            }
+          }
+        }
+      },
+      {
+        "id": 3,
+        "title": "Focus Score Trend",
+        "type": "stat",
+        "gridPos": {
+          "x": 18,
+          "y": 0,
+          "w": 6,
+          "h": 8
+        },
+        "targets": [
+          {
+            "datasource": "PostgreSQL",
+            "rawSql": "SELECT AVG(value) as focus_score FROM biofeedback_metrics WHERE metric_type = 'focus_score' AND timestamp > NOW() - INTERVAL '1 hour'",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percent",
+            "color": {
+              "mode": "thresholds"
+            },
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"value": 0, "color": "red"},
+                {"value": 50, "color": "yellow"},
+                {"value": 80, "color": "green"}
+              ]
+            }
+          }
+        },
+        "options": {
+          "graphMode": "area",
+          "colorMode": "value"
+        }
+      },
+      {
+        "id": 4,
+        "title": "Active Users by Hour",
+        "type": "barchart",
+        "gridPos": {
+          "x": 0,
+          "y": 8,
+          "w": 12,
+          "h": 8
+        },
+        "targets": [
+          {
+            "datasource": "PostgreSQL",
+            "rawSql": "SELECT time_bucket('1 hour', timestamp) as time, COUNT(DISTINCT user_id) as active_users FROM biofeedback_metrics WHERE $__timeFilter(timestamp) GROUP BY time ORDER BY time",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "short",
+            "color": {
+              "mode": "palette-classic"
+            }
+          }
+        }
+      },
+      {
+        "id": 5,
+        "title": "Metric Quality Score",
+        "type": "timeseries",
+        "gridPos": {
+          "x": 12,
+          "y": 8,
+          "w": 12,
+          "h": 8
+        },
+        "targets": [
+          {
+            "datasource": "PostgreSQL",
+            "rawSql": "SELECT timestamp as time, AVG(quality_score) as quality FROM biofeedback_metrics WHERE $__timeFilter(timestamp) AND quality_score IS NOT NULL GROUP BY time ORDER BY time",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percent",
+            "min": 0,
+            "max": 100,
+            "color": {
+              "mode": "palette-classic"
+            }
+          }
+        }
+      },
+      {
+        "id": 6,
+        "title": "System Performance Overview",
+        "type": "table",
+        "gridPos": {
+          "x": 0,
+          "y": 16,
+          "w": 24,
+          "h": 8
+        },
+        "targets": [
+          {
+            "datasource": "PostgreSQL",
+            "rawSql": "SELECT service_name, metric_name, AVG(metric_value) as avg_value, MIN(metric_value) as min_value, MAX(metric_value) as max_value FROM system_metrics WHERE timestamp > NOW() - INTERVAL '1 hour' GROUP BY service_name, metric_name ORDER BY service_name, metric_name",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "custom": {
+              "align": "auto",
+              "displayMode": "auto"
+            }
+          },
+          "overrides": [
+            {
+              "matcher": {"id": "byName", "options": "avg_value"},
+              "properties": [
+                {
+                  "id": "custom.displayMode",
+                  "value": "color-background"
+                },
+                {
+                  "id": "thresholds",
+                  "value": {
+                    "mode": "absolute",
+                    "steps": [
+                      {"value": null, "color": "green"},
+                      {"value": 70, "color": "yellow"},
+                      {"value": 90, "color": "red"}
+                    ]
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "id": 7,
+        "title": "API Response Time (p95)",
+        "type": "graph",
+        "gridPos": {
+          "x": 0,
+          "y": 24,
+          "w": 12,
+          "h": 8
+        },
+        "targets": [
+          {
+            "datasource": "Prometheus",
+            "expr": "histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m]))",
+            "refId": "A",
+            "legendFormat": "p95 latency"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "s"
+          }
+        }
+      },
+      {
+        "id": 8,
+        "title": "Error Rate",
+        "type": "graph",
+        "gridPos": {
+          "x": 12,
+          "y": 24,
+          "w": 12,
+          "h": 8
+        },
+        "targets": [
+          {
+            "datasource": "Prometheus",
+            "expr": "rate(http_requests_total{status=~\"5..\"}[5m])",
+            "refId": "A",
+            "legendFormat": "5xx errors"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "reqps"
+          }
+        }
+      }
+    ],
+    "annotations": {
+      "list": [
+        {
+          "datasource": "PostgreSQL",
+          "enable": true,
+          "iconColor": "red",
+          "name": "Deployments",
+          "rawQuery": "SELECT timestamp as time, event_name as text, 'deployment' as tags FROM events WHERE event_type = 'deployment' AND $__timeFilter(timestamp)"
+        }
+      ]
+    },
+    "templating": {
+      "list": [
+        {
+          "name": "environment",
+          "type": "query",
+          "datasource": "PostgreSQL",
+          "query": "SELECT DISTINCT environment FROM system_metrics",
+          "current": {
+            "selected": true,
+            "text": "production",
+            "value": "production"
+          }
+        },
+        {
+          "name": "user_id",
+          "type": "query",
+          "datasource": "PostgreSQL",
+          "query": "SELECT id as __value, username as __text FROM users WHERE is_active = true ORDER BY username",
+          "multi": true,
+          "includeAll": true
+        }
+      ]
+    }
+  }
+}
