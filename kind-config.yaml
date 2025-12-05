@@ -1,0 +1,77 @@
+# Kind Cluster Configuration
+# operator-996 Platform - Local Development
+
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+name: operator996
+
+# Kubernetes version
+# Use a version compatible with your local kubectl
+nodes:
+  # Control plane node
+  - role: control-plane
+    kubeadmConfigPatches:
+      - |
+        kind: InitConfiguration
+        nodeRegistration:
+          kubeletExtraArgs:
+            node-labels: "ingress-ready=true"
+    extraPortMappings:
+      # HTTP
+      - containerPort: 80
+        hostPort: 80
+        protocol: TCP
+      # HTTPS
+      - containerPort: 443
+        hostPort: 443
+        protocol: TCP
+      # Application
+      - containerPort: 30000
+        hostPort: 3000
+        protocol: TCP
+      # Kong Proxy
+      - containerPort: 30080
+        hostPort: 8000
+        protocol: TCP
+      # Kong Admin
+      - containerPort: 30081
+        hostPort: 8001
+        protocol: TCP
+      # PostgreSQL
+      - containerPort: 30432
+        hostPort: 5432
+        protocol: TCP
+      # Redis
+      - containerPort: 30379
+        hostPort: 6379
+        protocol: TCP
+      # Grafana
+      - containerPort: 30001
+        hostPort: 3001
+        protocol: TCP
+      # Prometheus
+      - containerPort: 30090
+        hostPort: 9090
+        protocol: TCP
+
+  # Worker nodes
+  - role: worker
+  - role: worker
+
+# Networking configuration
+networking:
+  # Use Calico CNI for network policies
+  disableDefaultCNI: false
+  podSubnet: "10.244.0.0/16"
+  serviceSubnet: "10.96.0.0/12"
+
+# Container runtime configuration
+containerdConfigPatches:
+  - |-
+    [plugins."io.containerd.grpc.v1.cri".registry.mirrors."localhost:5000"]
+      endpoint = ["http://kind-registry:5000"]
+
+# Feature gates
+featureGates:
+  # Enable PodSecurityPolicy
+  PodSecurity: true

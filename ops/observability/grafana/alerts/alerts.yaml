@@ -1,0 +1,68 @@
+# Grafana Alerting Rules
+# operator-996 Platform
+
+apiVersion: 1
+
+groups:
+  - name: operator996-alerts
+    interval: 1m
+    rules:
+      - uid: high-error-rate
+        title: High Error Rate
+        condition: C
+        data:
+          - refId: A
+            datasourceUid: prometheus
+            model:
+              expr: >
+                sum(rate(http_requests_total{job="operator996",status=~"5.."}[5m])) 
+                / sum(rate(http_requests_total{job="operator996"}[5m])) * 100
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: A
+              conditions:
+                - evaluator:
+                    params: [5]
+                    type: gt
+        for: 5m
+        annotations:
+          summary: High error rate detected
+          description: Error rate is above 5%
+        labels:
+          severity: critical
+          team: platform
+
+      - uid: high-latency
+        title: High API Latency
+        condition: C
+        data:
+          - refId: A
+            datasourceUid: prometheus
+            model:
+              expr: histogram_quantile(0.95, rate(http_request_duration_seconds_bucket{job="operator996"}[5m]))
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: A
+              conditions:
+                - evaluator:
+                    params: [1]
+                    type: gt
+        for: 5m
+        annotations:
+          summary: High API latency
+          description: 95th percentile latency exceeds 1 second
+        labels:
+          severity: warning
+
+contactPoints:
+  - name: platform-team
+    receivers:
+      - uid: slack-alerts
+        type: slack
+        settings:
+          url: ${SLACK_WEBHOOK_URL}
+          title: operator-996 Alert

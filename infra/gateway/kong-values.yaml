@@ -1,0 +1,133 @@
+# Kong Gateway Helm Values
+# operator-996 Platform - Kong Configuration
+
+replicaCount: 2
+
+image:
+  repository: kong
+  tag: "3.4"
+  pullPolicy: IfNotPresent
+
+env:
+  database: postgres
+  pg_host: kong-database.kong.svc.cluster.local
+  pg_port: "5432"
+  pg_user: kong
+  pg_database: kong
+  pg_password:
+    valueFrom:
+      secretKeyRef:
+        name: kong-db-secret
+        key: password
+  proxy_access_log: /dev/stdout
+  admin_access_log: /dev/stdout
+  proxy_error_log: /dev/stderr
+  admin_error_log: /dev/stderr
+  admin_listen: 0.0.0.0:8001, 0.0.0.0:8444 ssl
+  proxy_listen: 0.0.0.0:8000, 0.0.0.0:8443 ssl
+  status_listen: 0.0.0.0:8100
+
+admin:
+  enabled: true
+  type: ClusterIP
+  http:
+    enabled: true
+    servicePort: 8001
+    containerPort: 8001
+  tls:
+    enabled: true
+    servicePort: 8444
+    containerPort: 8444
+  annotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "8001"
+
+proxy:
+  enabled: true
+  type: LoadBalancer
+  http:
+    enabled: true
+    servicePort: 80
+    containerPort: 8000
+  tls:
+    enabled: true
+    servicePort: 443
+    containerPort: 8443
+  annotations:
+    service.beta.kubernetes.io/aws-load-balancer-type: nlb
+    service.beta.kubernetes.io/aws-load-balancer-cross-zone-load-balancing-enabled: "true"
+
+status:
+  enabled: true
+  http:
+    enabled: true
+    containerPort: 8100
+
+serviceMonitor:
+  enabled: true
+  interval: 10s
+  labels:
+    release: prometheus
+
+resources:
+  requests:
+    cpu: 200m
+    memory: 256Mi
+  limits:
+    cpu: 1000m
+    memory: 1Gi
+
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 5
+  targetCPUUtilizationPercentage: 70
+
+readinessProbe:
+  httpGet:
+    path: /status
+    port: status
+  initialDelaySeconds: 5
+  periodSeconds: 10
+  timeoutSeconds: 5
+  successThreshold: 1
+  failureThreshold: 3
+
+livenessProbe:
+  httpGet:
+    path: /status
+    port: status
+  initialDelaySeconds: 10
+  periodSeconds: 10
+  timeoutSeconds: 5
+  successThreshold: 1
+  failureThreshold: 3
+
+ingressController:
+  enabled: true
+  installCRDs: false
+
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1
+
+podSecurityPolicy:
+  enabled: false
+
+postgresql:
+  enabled: true
+  auth:
+    username: kong
+    database: kong
+    existingSecret: kong-db-secret
+  primary:
+    persistence:
+      enabled: true
+      size: 10Gi
+
+migrations:
+  preUpgrade: true
+  postUpgrade: true
+
+plugins:
+  configMaps: []

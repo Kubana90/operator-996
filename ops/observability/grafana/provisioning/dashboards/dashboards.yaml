@@ -1,0 +1,17 @@
+# Grafana Dashboards Provisioning
+# operator-996 Platform
+
+apiVersion: 1
+
+providers:
+  - name: 'operator996-dashboards'
+    orgId: 1
+    folder: 'operator-996'
+    folderUid: 'operator996'
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 30
+    allowUiUpdates: true
+    options:
+      path: /etc/grafana/provisioning/dashboards
+      foldersFromFilesStructure: true

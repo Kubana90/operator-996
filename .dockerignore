@@ -1,0 +1,83 @@
+# Docker ignore file for operator-996
+# Exclude files and directories that should not be included in Docker builds
+
+# Git
+.git
+.gitignore
+.gitattributes
+
+# Node modules
+node_modules
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Build outputs (will be rebuilt in container)
+dist
+build
+*.tsbuildinfo
+
+# Test files
+tests
+coverage
+.nyc_output
+*.lcov
+
+# IDE and editor files
+.vscode
+.idea
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Environment files with secrets
+.env
+.env.local
+.env.*.local
+.env.prod
+.env.stage
+
+# Documentation
+*.md
+!README.md
+docs
+
+# CI/CD
+.github
+.gitlab-ci.yml
+.travis.yml
+Jenkinsfile
+
+# Kubernetes and Helm
+infra/helm
+kubeconfig
+*.kubeconfig
+
+# Backup files
+*.backup
+*.sql.backup
+backups
+
+# Logs
+logs
+*.log
+
+# Secrets (should never be in Docker images)
+*.pem
+*.key
+*.crt
+secrets
+
+# Development files
+docker-compose*.yml
+Makefile
+scripts
+
+# Build info files
+build-info-*.json
+
+# Temporary files
+tmp
+temp
+*.tmp

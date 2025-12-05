@@ -1,0 +1,193 @@
+{
+  "dashboard": {
+    "id": null,
+    "uid": "operator996-api-gateway",
+    "title": "operator-996 API Gateway (Kong)",
+    "tags": ["operator996", "kong", "api", "gateway"],
+    "timezone": "browser",
+    "schemaVersion": 38,
+    "version": 1,
+    "refresh": "30s",
+    "time": {
+      "from": "now-1h",
+      "to": "now"
+    },
+    "panels": [
+      {
+        "id": 1,
+        "title": "Request Rate",
+        "type": "timeseries",
+        "gridPos": {
+          "x": 0,
+          "y": 0,
+          "w": 12,
+          "h": 8
+        },
+        "targets": [
+          {
+            "datasource": "Prometheus",
+            "expr": "sum(rate(kong_http_requests_total[5m])) by (service)",
+            "refId": "A",
+            "legendFormat": "{{ service }}"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "reqps"
+          }
+        }
+      },
+      {
+        "id": 2,
+        "title": "Response Time (p95)",
+        "type": "timeseries",
+        "gridPos": {
+          "x": 12,
+          "y": 0,
+          "w": 12,
+          "h": 8
+        },
+        "targets": [
+          {
+            "datasource": "Prometheus",
+            "expr": "histogram_quantile(0.95, sum(rate(kong_latency_bucket{type=\"request\"}[5m])) by (le, service))",
+            "refId": "A",
+            "legendFormat": "{{ service }}"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "ms"
+          }
+        }
+      },
+      {
+        "id": 3,
+        "title": "Error Rate",
+        "type": "stat",
+        "gridPos": {
+          "x": 0,
+          "y": 8,
+          "w": 6,
+          "h": 4
+        },
+        "targets": [
+          {
+            "datasource": "Prometheus",
+            "expr": "sum(rate(kong_http_requests_total{code=~\"5..\"}[5m])) / sum(rate(kong_http_requests_total[5m])) * 100",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percent",
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"value": 0, "color": "green"},
+                {"value": 1, "color": "yellow"},
+                {"value": 5, "color": "red"}
+              ]
+            }
+          }
+        }
+      },
+      {
+        "id": 4,
+        "title": "Active Connections",
+        "type": "stat",
+        "gridPos": {
+          "x": 6,
+          "y": 8,
+          "w": 6,
+          "h": 4
+        },
+        "targets": [
+          {
+            "datasource": "Prometheus",
+            "expr": "kong_nginx_connections_total{state=\"active\"}",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "short"
+          }
+        }
+      },
+      {
+        "id": 5,
+        "title": "Status Codes Distribution",
+        "type": "piechart",
+        "gridPos": {
+          "x": 12,
+          "y": 8,
+          "w": 12,
+          "h": 8
+        },
+        "targets": [
+          {
+            "datasource": "Prometheus",
+            "expr": "sum(increase(kong_http_requests_total[1h])) by (code)",
+            "refId": "A",
+            "legendFormat": "{{ code }}"
+          }
+        ]
+      },
+      {
+        "id": 6,
+        "title": "Upstream Latency",
+        "type": "timeseries",
+        "gridPos": {
+          "x": 0,
+          "y": 12,
+          "w": 12,
+          "h": 8
+        },
+        "targets": [
+          {
+            "datasource": "Prometheus",
+            "expr": "histogram_quantile(0.95, sum(rate(kong_latency_bucket{type=\"upstream\"}[5m])) by (le, service))",
+            "refId": "A",
+            "legendFormat": "p95 {{ service }}"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "ms"
+          }
+        }
+      },
+      {
+        "id": 7,
+        "title": "Bandwidth",
+        "type": "timeseries",
+        "gridPos": {
+          "x": 12,
+          "y": 16,
+          "w": 12,
+          "h": 8
+        },
+        "targets": [
+          {
+            "datasource": "Prometheus",
+            "expr": "sum(rate(kong_bandwidth_bytes{direction=\"ingress\"}[5m]))",
+            "refId": "A",
+            "legendFormat": "Ingress"
+          },
+          {
+            "datasource": "Prometheus",
+            "expr": "sum(rate(kong_bandwidth_bytes{direction=\"egress\"}[5m]))",
+            "refId": "B",
+            "legendFormat": "Egress"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "Bps"
+          }
+        }
+      }
+    ]
+  }
+}
