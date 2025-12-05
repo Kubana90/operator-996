@@ -1,0 +1,39 @@
+{{- if and .Values.security .Values.security.networkPolicy .Values.security.networkPolicy.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "operator996.fullname" . }}
+  labels:
+    {{- include "operator996.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "operator996.selectorLabels" . | nindent 6 }}
+  {{- with .Values.security.networkPolicy.policyTypes }}
+  policyTypes:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  ingress:
+    - from:
+        - namespaceSelector: {}
+          podSelector: {}
+      ports:
+        - protocol: TCP
+          port: {{ .Values.service.targetPort | default 3000 }}
+  egress:
+    - to:
+        - namespaceSelector: {}
+      ports:
+        - protocol: TCP
+          port: 5432
+        - protocol: TCP
+          port: 6379
+    - to:
+        - namespaceSelector: {}
+          podSelector: {}
+      ports:
+        - protocol: TCP
+          port: 53
+        - protocol: UDP
+          port: 53
+{{- end }}

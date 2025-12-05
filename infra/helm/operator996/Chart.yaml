@@ -1,0 +1,23 @@
+apiVersion: v2
+name: operator996
+description: Helm chart for the operator-996 platform
+type: application
+version: 1.0.0
+appVersion: "1.0.0"
+maintainers:
+  - name: operator-996 Team
+    email: team@operator996.io
+keywords:
+  - operator996
+  - platform
+sources:
+  - https://github.com/Kubana90/operator-996
+dependencies:
+  - name: postgresql
+    version: "15.5.38"
+    repository: "https://charts.bitnami.com/bitnami"
+    condition: postgresql.enabled
+  - name: redis
+    version: "20.11.3"
+    repository: "https://charts.bitnami.com/bitnami"
+    condition: redis.enabled

@@ -137,6 +137,19 @@ kubectl create secret docker-registry ghcr-secret \
 
 ## 4. Helm Deployment
 
+### Download Helm Chart Dependencies
+
+Before installing the chart, you need to download the dependencies (PostgreSQL and Redis):
+
+```bash
+# Download dependencies
+make helm-deps
+
+# Or manually
+cd infra/helm/operator996
+helm dependency build
+```
+
 ### Helm Charts installieren
 
 ```bash

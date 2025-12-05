@@ -124,6 +124,21 @@ k8s-shell: ## Open shell in pod
 	echo "Opening shell in pod: $$POD"; \
 	kubectl exec -it $$POD -n $(NAMESPACE) -- /bin/sh
 
+# Helm
+helm-deps: ## Download Helm chart dependencies
+	@echo "$(BLUE)Downloading Helm chart dependencies...$(NC)"
+	cd infra/helm/operator996 && helm dependency build
+	@echo "$(GREEN)✓ Dependencies downloaded$(NC)"
+
+helm-lint: ## Lint Helm chart
+	@echo "$(BLUE)Linting Helm chart...$(NC)"
+	cd infra/helm/operator996 && helm lint . -f values-$(ENV).yaml
+	@echo "$(GREEN)✓ Chart linted$(NC)"
+
+helm-template: helm-deps ## Render Helm chart templates locally
+	@echo "$(BLUE)Rendering Helm templates for $(ENV)...$(NC)"
+	cd infra/helm/operator996 && helm template operator996 . -f values-$(ENV).yaml --namespace $(NAMESPACE)
+
 # Monitoring
 grafana: ## Open Grafana dashboard
 	@echo "$(BLUE)Opening Grafana...$(NC)"

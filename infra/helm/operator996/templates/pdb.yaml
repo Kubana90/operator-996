@@ -1,0 +1,18 @@
+{{- if and .Values.security .Values.security.podDisruptionBudget .Values.security.podDisruptionBudget.enabled }}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "operator996.fullname" . }}
+  labels:
+    {{- include "operator996.labels" . | nindent 4 }}
+spec:
+  {{- if .Values.security.podDisruptionBudget.minAvailable }}
+  minAvailable: {{ .Values.security.podDisruptionBudget.minAvailable }}
+  {{- end }}
+  {{- if .Values.security.podDisruptionBudget.maxUnavailable }}
+  maxUnavailable: {{ .Values.security.podDisruptionBudget.maxUnavailable }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "operator996.selectorLabels" . | nindent 6 }}
+{{- end }}
