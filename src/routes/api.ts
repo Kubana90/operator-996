@@ -1,6 +1,12 @@
 /**
  * operator-996 Platform - API Routes
  * @description Main API routes for the platform
+ *
+ * Note: Rate limiting is handled at the Kong API Gateway level
+ * (see infra/gateway/kong.yml) and not at the application level.
+ * This is a deliberate architectural decision to centralize
+ * rate limiting configuration and leverage Kong's distributed
+ * rate limiting capabilities.
  */
 
 import { Router, Request, Response, NextFunction } from 'express';
