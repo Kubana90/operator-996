@@ -1,0 +1,442 @@
+# operator-996 CI/CD Pipeline
+# GitHub Actions workflow for continuous integration and deployment
+
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+      - 'release/**'
+    tags:
+      - 'v*'
+  pull_request:
+    branches:
+      - main
+      - develop
+  workflow_dispatch:
+
+# Default permissions for all jobs
+permissions:
+  contents: read
+
+env:
+  DOCKER_REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+  HELM_VERSION: '3.12.0'
+  KUBECTL_VERSION: '1.28.0'
+  NODE_VERSION: '20'
+
+jobs:
+  # ============================================
+  # VALIDATION & TESTING
+  # ============================================
+
+  lint-and-validate:
+    name: Lint & Validate
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Run ESLint
+        run: npm run lint
+
+      - name: Run Prettier Check
+        run: npm run format:check
+
+      - name: TypeScript Type Check
+        run: npm run type-check
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v1
+        with:
+          version: '3.12.0'
+
+      - name: Build Helm dependencies for operator996
+        run: helm dependency build infra/helm/operator996
+
+      - name: Lint Helm chart
+        run: |
+          helm lint infra/helm/operator996/
+          helm template operator996 infra/helm/operator996/ --values infra/helm/operator996/values-dev.yaml
+
+  unit-tests:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Run Unit Tests
+        run: npm run test:unit -- --coverage --passWithNoTests
+
+      - name: Upload Coverage Report
+        uses: codecov/codecov-action@v3
+        with:
+          files: ./coverage/lcov.info
+          flags: unittests
+          fail_ci_if_error: false
+
+  integration-tests:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    services:
+      postgres:
+        image: timescale/timescaledb:latest-pg14
+        env:
+          POSTGRES_USER: test_user
+          POSTGRES_PASSWORD: test_pass
+          POSTGRES_DB: operator996_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Setup Database Schema
+        run: |
+          PGPASSWORD=test_pass psql -h localhost -U test_user -d operator996_test -f infra/db/kpi-schema.sql
+
+      - name: Run Integration Tests
+        env:
+          DB_HOST: localhost
+          DB_PORT: 5432
+          DB_USER: test_user
+          DB_PASSWORD: test_pass
+          DB_NAME: operator996_test
+          REDIS_HOST: localhost
+          REDIS_PORT: 6379
+          NODE_ENV: test
+        run: npm run test:integration -- --passWithNoTests
+
+  security-scan:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Run Trivy Vulnerability Scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+          severity: 'CRITICAL,HIGH'
+
+      - name: Upload Trivy Results
+        uses: github/codeql-action/upload-sarif@v2
+        if: always()
+        with:
+          sarif_file: 'trivy-results.sarif'
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: npm Audit
+        run: npm audit --audit-level=high || true
+
+  # ============================================
+  # BUILD & PUBLISH
+  # ============================================
+
+  build-and-push:
+    name: Build & Push Docker Image
+    runs-on: ubuntu-latest
+    needs: [lint-and-validate, unit-tests, integration-tests]
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      image_tag: ${{ steps.meta.outputs.tags }}
+      version: ${{ steps.meta.outputs.version }}
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.DOCKER_REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.DOCKER_REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=sha,prefix={{branch}}-
+
+      - name: Build and Push
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          build-args: |
+            BUILD_DATE=${{ github.event.head_commit.timestamp }}
+            VCS_REF=${{ github.sha }}
+
+  # ============================================
+  # DEPLOYMENT
+  # ============================================
+
+  deploy-dev:
+    name: Deploy to Development
+    runs-on: ubuntu-latest
+    needs: build-and-push
+    if: github.ref == 'refs/heads/develop'
+    permissions:
+      contents: read
+    environment:
+      name: development
+      url: https://dev.operator996.io
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Helm
+        uses: azure/setup-helm@v3
+        with:
+          version: ${{ env.HELM_VERSION }}
+
+      - name: Setup kubectl
+        uses: azure/setup-kubectl@v3
+        with:
+          version: ${{ env.KUBECTL_VERSION }}
+
+      - name: Configure Kubernetes Context
+        run: |
+          echo "${{ secrets.KUBE_CONFIG_DEV }}" | base64 -d > kubeconfig
+          echo "KUBECONFIG=$(pwd)/kubeconfig" >> $GITHUB_ENV
+
+      - name: Deploy with Helm
+        run: |
+          helm upgrade --install operator996 \
+            infra/helm/operator996/ \
+            --namespace operator996-dev \
+            --create-namespace \
+            --values infra/helm/operator996/values-dev.yaml \
+            --set image.tag=${{ github.sha }} \
+            --wait \
+            --timeout 10m
+
+      - name: Verify Deployment
+        run: |
+          kubectl rollout status deployment/operator996 -n operator996-dev
+          kubectl get pods -n operator996-dev
+
+  deploy-staging:
+    name: Deploy to Staging
+    runs-on: ubuntu-latest
+    needs: build-and-push
+    if: github.ref == 'refs/heads/main'
+    permissions:
+      contents: read
+    environment:
+      name: staging
+      url: https://stage.operator996.io
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Helm
+        uses: azure/setup-helm@v3
+        with:
+          version: ${{ env.HELM_VERSION }}
+
+      - name: Setup kubectl
+        uses: azure/setup-kubectl@v3
+        with:
+          version: ${{ env.KUBECTL_VERSION }}
+
+      - name: Configure Kubernetes Context
+        run: |
+          echo "${{ secrets.KUBE_CONFIG_STAGE }}" | base64 -d > kubeconfig
+          echo "KUBECONFIG=$(pwd)/kubeconfig" >> $GITHUB_ENV
+
+      - name: Deploy with Helm
+        run: |
+          helm upgrade --install operator996 \
+            infra/helm/operator996/ \
+            --namespace operator996-stage \
+            --create-namespace \
+            --values infra/helm/operator996/values-stage.yaml \
+            --set image.tag=${{ github.sha }} \
+            --wait \
+            --timeout 15m
+
+      - name: Run Smoke Tests
+        run: |
+          kubectl run smoke-test --image=curlimages/curl:latest --rm -i --restart=Never -n operator996-stage -- \
+            curl -f http://operator996.operator996-stage.svc.cluster.local:3000/health || true
+
+  deploy-production:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    needs: [build-and-push, deploy-staging]
+    if: startsWith(github.ref, 'refs/tags/v')
+    permissions:
+      contents: write
+    environment:
+      name: production
+      url: https://api.operator996.io
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Helm
+        uses: azure/setup-helm@v3
+        with:
+          version: ${{ env.HELM_VERSION }}
+
+      - name: Setup kubectl
+        uses: azure/setup-kubectl@v3
+        with:
+          version: ${{ env.KUBECTL_VERSION }}
+
+      - name: Configure Kubernetes Context
+        run: |
+          echo "${{ secrets.KUBE_CONFIG_PROD }}" | base64 -d > kubeconfig
+          echo "KUBECONFIG=$(pwd)/kubeconfig" >> $GITHUB_ENV
+
+      - name: Deploy Canary
+        run: |
+          helm upgrade --install operator996-canary \
+            infra/helm/operator996/ \
+            --namespace operator996-prod \
+            --values infra/helm/operator996/values-prod.yaml \
+            --set image.tag=${{ github.ref_name }} \
+            --set replicaCount=1 \
+            --wait \
+            --timeout 15m
+
+      - name: Verify Canary
+        run: |
+          sleep 120
+          kubectl logs -l app.kubernetes.io/name=operator996 -n operator996-prod --tail=50
+
+      - name: Full Production Rollout
+        run: |
+          helm upgrade --install operator996 \
+            infra/helm/operator996/ \
+            --namespace operator996-prod \
+            --values infra/helm/operator996/values-prod.yaml \
+            --set image.tag=${{ github.ref_name }} \
+            --wait \
+            --timeout 20m
+
+      - name: Verify Production Deployment
+        run: |
+          kubectl rollout status deployment/operator996 -n operator996-prod
+          kubectl get pods -n operator996-prod
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          generate_release_notes: true
+          draft: false
+          prerelease: ${{ contains(github.ref, 'rc') || contains(github.ref, 'beta') }}
+
+  # ============================================
+  # ROLLBACK (Manual Trigger)
+  # ============================================
+
+  rollback:
+    name: Rollback Deployment
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch'
+    permissions:
+      contents: read
+    environment:
+      name: ${{ github.event.inputs.environment }}
+    steps:
+      - name: Setup Helm
+        uses: azure/setup-helm@v3
+        with:
+          version: ${{ env.HELM_VERSION }}
+
+      - name: Setup kubectl
+        uses: azure/setup-kubectl@v3
+        with:
+          version: ${{ env.KUBECTL_VERSION }}
+
+      - name: Rollback
+        run: |
+          helm rollback operator996 --namespace operator996-${{ github.event.inputs.environment }} --wait

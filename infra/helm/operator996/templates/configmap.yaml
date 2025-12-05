@@ -1,0 +1,25 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "operator996.configMapName" . }}
+  labels:
+    {{- include "operator996.labels" . | nindent 4 }}
+data:
+  NODE_ENV: {{ .Values.config.nodeEnv | default "production" | quote }}
+  PORT: {{ .Values.service.targetPort | quote }}
+  HOST: "0.0.0.0"
+  LOG_LEVEL: {{ .Values.config.logLevel | default "info" | quote }}
+  DB_PORT: "5432"
+  DB_SSL: "false"
+  DB_POOL_MIN: "2"
+  DB_POOL_MAX: "10"
+  REDIS_PORT: "6379"
+  REDIS_DB: "0"
+  REDIS_TTL: "3600"
+  ENABLE_BIOFEEDBACK: {{ .Values.config.enableBiofeedback | quote }}
+  ENABLE_ANALYTICS: {{ .Values.config.enableAnalytics | quote }}
+  ENABLE_DEBUG_ROUTES: {{ .Values.config.enableDebugRoutes | quote }}
+  API_RATE_LIMIT: {{ .Values.config.rateLimit | default "1000" | quote }}
+  {{- if .Values.config.corsOrigins }}
+  CORS_ORIGIN: {{ .Values.config.corsOrigins | quote }}
+  {{- end }}
