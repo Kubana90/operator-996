@@ -6,7 +6,6 @@ FROM node:20-alpine AS builder
 
 ARG BUILD_DATE
 ARG VCS_REF
-ARG NODE_ENV=production
 
 WORKDIR /app
 
@@ -14,7 +13,8 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 
 # Install all dependencies (including dev for building)
-RUN npm ci
+# Use npm install as fallback if npm ci times out
+RUN npm install
 
 # Copy source code
 COPY tsconfig.json ./
@@ -22,9 +22,6 @@ COPY src ./src
 
 # Build TypeScript
 RUN npm run build
-
-# Prune dev dependencies
-RUN npm prune --production
 
 # Production stage
 FROM node:20-alpine AS production
@@ -45,10 +42,14 @@ RUN addgroup -g 1001 -S appgroup && \
 
 WORKDIR /app
 
-# Copy built application and production dependencies
+# Copy package files
+COPY package.json package-lock.json ./
+
+# Install only production dependencies
+RUN npm install --omit=dev
+
+# Copy built application from builder
 COPY --from=builder --chown=appuser:appgroup /app/dist ./dist
-COPY --from=builder --chown=appuser:appgroup /app/node_modules ./node_modules
-COPY --from=builder --chown=appuser:appgroup /app/package.json ./
 
 # Set environment variables
 ENV NODE_ENV=production
