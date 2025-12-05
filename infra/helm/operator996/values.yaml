@@ -1,0 +1,177 @@
+# Default values for operator996
+# This is a YAML-formatted file.
+
+# Number of replicas
+replicaCount: 1
+
+# Image configuration
+image:
+  repository: ghcr.io/kubana90/operator996
+  pullPolicy: IfNotPresent
+  tag: ""  # Overridden by appVersion if not set
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+# Service account configuration
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+
+# Pod annotations
+podAnnotations:
+  prometheus.io/scrape: "true"
+  prometheus.io/port: "3000"
+  prometheus.io/path: "/metrics"
+
+# Pod security context
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  fsGroup: 1000
+
+# Container security context
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: false
+  capabilities:
+    drop:
+      - ALL
+
+# Service configuration
+service:
+  type: ClusterIP
+  port: 3000
+  targetPort: 3000
+  annotations: {}
+
+# Ingress configuration
+ingress:
+  enabled: false
+  className: ""
+  annotations: {}
+  hosts:
+    - host: operator996.local
+      paths:
+        - path: /
+          pathType: Prefix
+  tls: []
+
+# Resource limits and requests
+resources:
+  limits:
+    cpu: 500m
+    memory: 512Mi
+  requests:
+    cpu: 100m
+    memory: 128Mi
+
+# Horizontal Pod Autoscaler
+autoscaling:
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 80
+  targetMemoryUtilizationPercentage: 80
+  behavior:
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      policies:
+        - type: Percent
+          value: 50
+          periodSeconds: 60
+
+# Node selector
+nodeSelector: {}
+
+# Tolerations
+tolerations: []
+
+# Affinity rules
+affinity: {}
+
+# Environment variables (static)
+env:
+  - name: NODE_ENV
+    value: "production"
+
+# Environment from ConfigMap/Secret
+envFrom: []
+
+# Probes configuration
+probes:
+  liveness:
+    httpGet:
+      path: /health
+      port: 3000
+    initialDelaySeconds: 30
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
+    successThreshold: 1
+  readiness:
+    httpGet:
+      path: /ready
+      port: 3000
+    initialDelaySeconds: 10
+    periodSeconds: 5
+    timeoutSeconds: 3
+    failureThreshold: 3
+    successThreshold: 1
+
+# Application configuration
+config:
+  logLevel: "info"
+  port: 3000
+  enableBiofeedback: true
+  enableAnalytics: true
+  enableDebugRoutes: false
+
+# PostgreSQL subchart configuration
+postgresql:
+  enabled: true
+  auth:
+    username: operator996
+    database: operator996
+    existingSecret: ""
+  primary:
+    persistence:
+      enabled: true
+      size: 10Gi
+
+# Redis subchart configuration
+redis:
+  enabled: true
+  auth:
+    enabled: false
+    password: ""
+  master:
+    persistence:
+      enabled: true
+      size: 2Gi
+
+# Vault integration
+vault:
+  enabled: false
+  role: ""
+  secretPath: ""
+  secrets: []
+
+# Monitoring configuration
+monitoring:
+  enabled: true
+  serviceMonitor:
+    enabled: false
+    interval: 30s
+    scrapeTimeout: 10s
+    labels: {}
+
+# Security configuration
+security:
+  networkPolicy:
+    enabled: false
+  podDisruptionBudget:
+    enabled: false
+    minAvailable: 1

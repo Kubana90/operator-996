@@ -1,0 +1,80 @@
+# Prometheus ServiceMonitor
+# operator-996 Platform
+
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: operator996
+  namespace: operator996-dev
+  labels:
+    app.kubernetes.io/name: operator996
+    app.kubernetes.io/component: monitoring
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: operator996
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: 15s
+      scrapeTimeout: 10s
+      honorLabels: true
+  namespaceSelector:
+    matchNames:
+      - operator996-dev
+      - operator996-stage
+      - operator996-prod
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: operator996-alerts
+  namespace: operator996-dev
+  labels:
+    app.kubernetes.io/name: operator996
+    app.kubernetes.io/component: monitoring
+spec:
+  groups:
+    - name: operator996.rules
+      rules:
+        - alert: HighErrorRate
+          expr: |
+            sum(rate(http_requests_total{job="operator996",status=~"5.."}[5m])) 
+            / sum(rate(http_requests_total{job="operator996"}[5m])) > 0.05
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: High error rate detected
+            description: Error rate is {{ $value | printf "%.2f" }}%
+
+        - alert: HighLatency
+          expr: |
+            histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket{job="operator996"}[5m])) by (le)) > 1
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: High latency detected
+            description: 95th percentile latency is {{ $value | printf "%.2f" }}s
+
+        - alert: PodNotReady
+          expr: |
+            kube_pod_status_ready{pod=~"operator996.*",condition="true"} == 0
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: Pod not ready
+            description: Pod {{ $labels.pod }} has been not ready for more than 5 minutes
+
+        - alert: HighMemoryUsage
+          expr: |
+            container_memory_working_set_bytes{container="operator996"} 
+            / container_spec_memory_limit_bytes{container="operator996"} > 0.85
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: High memory usage
+            description: Memory usage is above 85%

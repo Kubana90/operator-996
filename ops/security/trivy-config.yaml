@@ -1,0 +1,83 @@
+# Trivy Security Scanner Configuration
+# operator-996 Platform
+
+# Scanner configuration
+scan:
+  # Security checks to run
+  security-checks:
+    - vuln
+    - config
+    - secret
+
+# Severity threshold
+severity:
+  - CRITICAL
+  - HIGH
+  - MEDIUM
+
+# Vulnerability database
+db:
+  repository: ghcr.io/aquasecurity/trivy-db
+  skip-update: false
+
+# Cache settings
+cache:
+  dir: /tmp/trivy-cache
+  ttl: 24h
+
+# Image scanning configuration
+image:
+  removed-pkgs: true
+  ignore-unfixed: false
+
+# Filesystem scanning
+fs:
+  skip-dirs:
+    - node_modules
+    - .git
+    - dist
+    - coverage
+    - .idea
+    - .vscode
+  skip-files:
+    - "**/*.min.js"
+    - "**/*.map"
+
+# Configuration scanning
+config:
+  policy:
+    - ./ops/security/policies
+  data:
+    - ./infra
+
+# Secret scanning
+secret:
+  config: ./ops/security/trivy-secrets.yaml
+
+# Report format
+format: table
+output: ""
+
+# Exit code
+exit-code: 1
+
+# Ignore files
+ignore:
+  - .trivyignore
+  - .trivyignore.yaml
+
+# Vulnerability ignore rules (false positives)
+vulnerability:
+  ignore-unfixed: false
+  type:
+    - os
+    - library
+
+# Timeout
+timeout: 10m
+
+# Quiet mode
+quiet: false
+
+# Debug mode
+debug: false

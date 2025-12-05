@@ -1,0 +1,122 @@
+# Vault Helm Values
+# operator-996 Platform - Vault Configuration
+
+global:
+  enabled: true
+  tlsDisable: false
+
+server:
+  enabled: true
+  image:
+    repository: hashicorp/vault
+    tag: "1.15"
+    pullPolicy: IfNotPresent
+
+  resources:
+    requests:
+      memory: 256Mi
+      cpu: 250m
+    limits:
+      memory: 512Mi
+      cpu: 500m
+
+  readinessProbe:
+    enabled: true
+    path: "/v1/sys/health?standbyok=true"
+    port: 8200
+
+  livenessProbe:
+    enabled: true
+    path: "/v1/sys/health?standbyok=true"
+    port: 8200
+    initialDelaySeconds: 60
+
+  auditStorage:
+    enabled: true
+    size: 10Gi
+
+  dataStorage:
+    enabled: true
+    size: 20Gi
+    storageClass: null
+
+  ha:
+    enabled: true
+    replicas: 3
+    raft:
+      enabled: true
+      setNodeId: true
+      config: |
+        ui = true
+        
+        listener "tcp" {
+          tls_disable = 0
+          address = "[::]:8200"
+          cluster_address = "[::]:8201"
+          tls_cert_file = "/vault/userconfig/vault-tls/tls.crt"
+          tls_key_file = "/vault/userconfig/vault-tls/tls.key"
+        }
+        
+        storage "raft" {
+          path = "/vault/data"
+        }
+        
+        service_registration "kubernetes" {}
+
+  standalone:
+    enabled: false
+
+  extraEnvironmentVars:
+    VAULT_CACERT: /vault/userconfig/vault-tls/ca.crt
+    VAULT_TLSCERT: /vault/userconfig/vault-tls/tls.crt
+    VAULT_TLSKEY: /vault/userconfig/vault-tls/tls.key
+
+  volumes:
+    - name: vault-tls
+      secret:
+        secretName: vault-tls
+
+  volumeMounts:
+    - name: vault-tls
+      mountPath: /vault/userconfig/vault-tls
+      readOnly: true
+
+  service:
+    enabled: true
+    type: ClusterIP
+    port: 8200
+    targetPort: 8200
+
+  ingress:
+    enabled: false
+
+ui:
+  enabled: true
+  serviceType: ClusterIP
+  externalPort: 8200
+
+injector:
+  enabled: true
+  replicas: 2
+  resources:
+    requests:
+      memory: 64Mi
+      cpu: 50m
+    limits:
+      memory: 128Mi
+      cpu: 250m
+
+  agentImage:
+    repository: hashicorp/vault
+    tag: "1.15"
+
+  agentDefaults:
+    cpuLimit: 250m
+    cpuRequest: 50m
+    memLimit: 128Mi
+    memRequest: 64Mi
+
+serverTelemetry:
+  serviceMonitor:
+    enabled: true
+    interval: 30s
