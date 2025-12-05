@@ -1,0 +1,27 @@
+apiVersion: v2
+name: operator996
+description: Advanced DevOps Infrastructure Platform - Helm Chart
+type: application
+version: 0.1.0
+appVersion: "v1.0.0"
+keywords:
+  - devops
+  - kubernetes
+  - monitoring
+  - biofeedback
+  - analytics
+home: https://github.com/Kubana90/operator-996
+sources:
+  - https://github.com/Kubana90/operator-996
+maintainers:
+  - name: Operator-996
+    url: https://github.com/Kubana90
+dependencies:
+  - name: postgresql
+    version: "14.x.x"
+    repository: "https://charts.bitnami.com/bitnami"
+    condition: postgresql.enabled
+  - name: redis
+    version: "18.x.x"
+    repository: "https://charts.bitnami.com/bitnami"
+    condition: redis.enabled
