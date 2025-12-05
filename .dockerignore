@@ -42,11 +42,10 @@ Thumbs.db
 tests
 __tests__
 
-# Config files
+# Config files (keep tsconfig.json for build)
 .eslintrc.js
 .prettierrc
 jest.config.js
-tsconfig.json
 
 # CI/CD
 .github

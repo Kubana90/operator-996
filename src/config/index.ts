@@ -34,9 +34,23 @@ export interface Config {
   redis: RedisConfig;
 }
 
+const nodeEnv = process.env.NODE_ENV || 'development';
+const isProduction = nodeEnv === 'production';
+
+// Helper to get required env vars in production
+function getRequiredEnv(key: string, defaultValue: string): string {
+  const value = process.env[key];
+  if (isProduction && !value) {
+    throw new Error(
+      `Required environment variable ${key} is not set in production`
+    );
+  }
+  return value || defaultValue;
+}
+
 const config: Config = {
   app: {
-    nodeEnv: process.env.NODE_ENV || 'development',
+    nodeEnv,
     port: parseInt(process.env.PORT || '3000', 10),
     host: process.env.HOST || '0.0.0.0',
     logLevel: process.env.LOG_LEVEL || 'info',
@@ -46,7 +60,7 @@ const config: Config = {
     port: parseInt(process.env.DB_PORT || '5432', 10),
     name: process.env.DB_NAME || 'operator996',
     user: process.env.DB_USER || 'postgres',
-    password: process.env.DB_PASSWORD || '',
+    password: getRequiredEnv('DB_PASSWORD', ''),
     ssl: process.env.DB_SSL === 'true',
     poolMin: parseInt(process.env.DB_POOL_MIN || '2', 10),
     poolMax: parseInt(process.env.DB_POOL_MAX || '10', 10),
