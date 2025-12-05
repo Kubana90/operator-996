@@ -38,6 +38,17 @@ security:
     capabilities:
       drop:
         - ALL
+  # Network policy configuration
+  networkPolicy:
+    enabled: false
+    policyTypes:
+      - Ingress
+      - Egress
+  # Pod disruption budget configuration
+  podDisruptionBudget:
+    enabled: false
+    minAvailable: 1
+    # maxUnavailable: 1
 
 # Service configuration
 service:
@@ -115,6 +126,13 @@ postgresql:
     persistence:
       size: 10Gi
 
+# External PostgreSQL configuration (when postgresql.enabled is false)
+externalDatabase:
+  host: ""
+  port: 5432
+  username: ""
+  database: ""
+
 # Redis subchart configuration
 redis:
   enabled: true
@@ -123,6 +141,11 @@ redis:
   master:
     persistence:
       size: 2Gi
+
+# External Redis configuration (when redis.enabled is false)
+externalRedis:
+  host: ""
+  port: 6379
 
 # Monitoring configuration
 monitoring:
