@@ -1,0 +1,155 @@
+# Default values for operator996
+# This is a YAML-formatted file.
+
+# Number of replicas
+replicaCount: 1
+
+# Image configuration
+image:
+  repository: operator996/app
+  pullPolicy: IfNotPresent
+  tag: ""
+
+# Image pull secrets
+imagePullSecrets: []
+
+# Override chart name
+nameOverride: ""
+fullnameOverride: ""
+
+# Service account configuration
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+
+# Pod annotations
+podAnnotations: {}
+
+# Security context
+security:
+  podSecurityContext:
+    runAsNonRoot: true
+    runAsUser: 1000
+    fsGroup: 1000
+  containerSecurityContext:
+    allowPrivilegeEscalation: false
+    readOnlyRootFilesystem: false
+    capabilities:
+      drop:
+        - ALL
+  # Network policy configuration
+  networkPolicy:
+    enabled: false
+    policyTypes:
+      - Ingress
+      - Egress
+  # Pod disruption budget configuration
+  podDisruptionBudget:
+    enabled: false
+    minAvailable: 1
+    # maxUnavailable: 1
+
+# Service configuration
+service:
+  type: ClusterIP
+  port: 3000
+  targetPort: 3000
+  annotations: {}
+
+# Ingress configuration
+ingress:
+  enabled: false
+  className: ""
+  annotations: {}
+  hosts:
+    - host: chart-example.local
+      paths:
+        - path: /
+          pathType: ImplementationSpecific
+  tls: []
+
+# Resource limits and requests
+resources:
+  limits:
+    cpu: 500m
+    memory: 512Mi
+  requests:
+    cpu: 100m
+    memory: 128Mi
+
+# Autoscaling configuration
+autoscaling:
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 80
+  targetMemoryUtilizationPercentage: 80
+
+# Node selector
+nodeSelector: {}
+
+# Tolerations
+tolerations: []
+
+# Affinity
+affinity: {}
+
+# Environment variables
+env: []
+
+# Environment variables from ConfigMap/Secret
+envFrom: []
+
+# Probes configuration
+probes:
+  liveness:
+    httpGet:
+      path: /health
+      port: 3000
+    initialDelaySeconds: 30
+    periodSeconds: 10
+  readiness:
+    httpGet:
+      path: /ready
+      port: 3000
+    initialDelaySeconds: 10
+    periodSeconds: 5
+
+# PostgreSQL subchart configuration
+postgresql:
+  enabled: true
+  auth:
+    username: operator996
+    database: operator996
+  primary:
+    persistence:
+      size: 10Gi
+
+# External PostgreSQL configuration (when postgresql.enabled is false)
+externalDatabase:
+  host: ""
+  port: 5432
+  username: ""
+  database: ""
+
+# Redis subchart configuration
+redis:
+  enabled: true
+  auth:
+    enabled: false
+  master:
+    persistence:
+      size: 2Gi
+
+# External Redis configuration (when redis.enabled is false)
+externalRedis:
+  host: ""
+  port: 6379
+
+# Monitoring configuration
+monitoring:
+  enabled: false
+  serviceMonitor:
+    enabled: false
+    interval: 30s

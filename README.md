@@ -37,6 +37,9 @@ cd operator-996
 # Environment konfigurieren
 cp .env.dev .env
 
+# Helm Dependencies herunterladen
+make helm-deps
+
 # Deployment
 python scripts/deploy_cli.py deploy --env dev
 

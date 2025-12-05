@@ -58,3 +58,7 @@ venv/
 
 # Build info
 build-info-*.json
+
+# Helm chart dependencies (downloaded via helm dependency build)
+infra/helm/*/charts/*.tgz
+Chart.lock
