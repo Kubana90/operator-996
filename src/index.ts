@@ -2,6 +2,7 @@ import express, { Application, Request, Response, NextFunction } from 'express';
 import config from './config';
 import logger from './utils/logger';
 import healthRoutes from './routes/health';
+import smartFrequencyRoutes from './routes/smartFrequency';
 
 const app: Application = express();
 
@@ -17,6 +18,16 @@ app.use((req: Request, _res: Response, next: NextFunction) => {
 
 // Routes
 app.use('/', healthRoutes);
+if (config.features.enableBiofeedback) {
+  app.use('/', smartFrequencyRoutes);
+} else {
+  app.use(
+    ['/smart-frequency', '/smart-frequency/*'],
+    (_req: Request, res: Response) => {
+      res.status(503).json({ error: 'SmartFrequency feature is disabled' });
+    }
+  );
+}
 
 // Root endpoint
 app.get('/', (_req: Request, res: Response) => {
