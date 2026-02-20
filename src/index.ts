@@ -18,7 +18,16 @@ app.use((req: Request, _res: Response, next: NextFunction) => {
 
 // Routes
 app.use('/', healthRoutes);
-app.use('/', smartFrequencyRoutes);
+if (config.features.enableBiofeedback) {
+  app.use('/', smartFrequencyRoutes);
+} else {
+  app.use(
+    ['/smart-frequency', '/smart-frequency/*'],
+    (_req: Request, res: Response) => {
+      res.status(503).json({ error: 'SmartFrequency feature is disabled' });
+    }
+  );
+}
 
 // Root endpoint
 app.get('/', (_req: Request, res: Response) => {

@@ -31,6 +31,21 @@ router.get('/smart-frequency/status', (_req: Request, res: Response) => {
   });
 });
 
+router.get('/smart-frequency/measurements', (req: Request, res: Response) => {
+  const { userId, signalType } = req.query as {
+    userId?: string;
+    signalType?: string;
+  };
+
+  const filtered = measurements.filter(
+    (m) =>
+      (userId === undefined || m.userId === userId) &&
+      (signalType === undefined || m.signalType === signalType)
+  );
+
+  res.json({ measurements: filtered, total: filtered.length });
+});
+
 router.post('/smart-frequency/measurements', (req: Request, res: Response) => {
   const { userId, frequencyHz, signalType, metadata } =
     req.body as FrequencyMeasurement;

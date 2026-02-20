@@ -28,10 +28,16 @@ export interface RedisConfig {
   ttl: number;
 }
 
+export interface FeaturesConfig {
+  enableBiofeedback: boolean;
+  enableAnalytics: boolean;
+}
+
 export interface Config {
   app: AppConfig;
   database: DatabaseConfig;
   redis: RedisConfig;
+  features: FeaturesConfig;
 }
 
 const nodeEnv = process.env.NODE_ENV || 'development';
@@ -71,6 +77,10 @@ const config: Config = {
     password: process.env.REDIS_PASSWORD || '',
     db: parseInt(process.env.REDIS_DB || '0', 10),
     ttl: parseInt(process.env.REDIS_TTL || '3600', 10),
+  },
+  features: {
+    enableBiofeedback: process.env.ENABLE_BIOFEEDBACK !== 'false',
+    enableAnalytics: process.env.ENABLE_ANALYTICS !== 'false',
   },
 };
 

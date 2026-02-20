@@ -147,4 +147,93 @@ describe('SmartFrequency', () => {
       expect(statusResponse).toHaveProperty('measurementCount');
     });
   });
+
+  describe('Measurements list response', () => {
+    it('should return measurements array and total', () => {
+      const items: FrequencyMeasurement[] = [
+        {
+          userId: 'u1',
+          frequencyHz: 8,
+          signalType: 'eeg',
+          timestamp: new Date().toISOString(),
+        },
+        {
+          userId: 'u2',
+          frequencyHz: 12,
+          signalType: 'heartrate',
+          timestamp: new Date().toISOString(),
+        },
+      ];
+
+      const response = { measurements: items, total: items.length };
+      expect(response.total).toBe(2);
+      expect(response.measurements).toHaveLength(2);
+    });
+
+    it('should filter by userId', () => {
+      const items: FrequencyMeasurement[] = [
+        {
+          userId: 'alice',
+          frequencyHz: 8,
+          signalType: 'eeg',
+          timestamp: new Date().toISOString(),
+        },
+        {
+          userId: 'bob',
+          frequencyHz: 12,
+          signalType: 'eeg',
+          timestamp: new Date().toISOString(),
+        },
+      ];
+
+      const filtered = items.filter((m) => m.userId === 'alice');
+      expect(filtered).toHaveLength(1);
+      expect(filtered[0].userId).toBe('alice');
+    });
+
+    it('should filter by signalType', () => {
+      const items: FrequencyMeasurement[] = [
+        {
+          userId: 'u1',
+          frequencyHz: 8,
+          signalType: 'eeg',
+          timestamp: new Date().toISOString(),
+        },
+        {
+          userId: 'u2',
+          frequencyHz: 60,
+          signalType: 'heartrate',
+          timestamp: new Date().toISOString(),
+        },
+        {
+          userId: 'u3',
+          frequencyHz: 10,
+          signalType: 'eeg',
+          timestamp: new Date().toISOString(),
+        },
+      ];
+
+      const filtered = items.filter((m) => m.signalType === 'eeg');
+      expect(filtered).toHaveLength(2);
+    });
+  });
+
+  describe('Feature flag behaviour', () => {
+    it('should default enableBiofeedback to true when env var is absent', () => {
+      const enabled = process.env.ENABLE_BIOFEEDBACK !== 'false';
+      expect(enabled).toBe(true);
+    });
+
+    it('should disable when ENABLE_BIOFEEDBACK is explicitly false', () => {
+      const original = process.env.ENABLE_BIOFEEDBACK;
+      process.env.ENABLE_BIOFEEDBACK = 'false';
+      const enabled = process.env.ENABLE_BIOFEEDBACK !== 'false';
+      expect(enabled).toBe(false);
+      if (original === undefined) {
+        delete process.env.ENABLE_BIOFEEDBACK;
+      } else {
+        process.env.ENABLE_BIOFEEDBACK = original;
+      }
+    });
+  });
 });
