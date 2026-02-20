@@ -2,6 +2,7 @@ import express, { Application, Request, Response, NextFunction } from 'express';
 import config from './config';
 import logger from './utils/logger';
 import healthRoutes from './routes/health';
+import smartFrequencyRoutes from './routes/smartFrequency';
 
 const app: Application = express();
 
@@ -17,6 +18,7 @@ app.use((req: Request, _res: Response, next: NextFunction) => {
 
 // Routes
 app.use('/', healthRoutes);
+app.use('/', smartFrequencyRoutes);
 
 // Root endpoint
 app.get('/', (_req: Request, res: Response) => {
